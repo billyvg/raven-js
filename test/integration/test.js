@@ -58,26 +58,37 @@ describe('integration', function() {
     it('should capture Raven.captureMessage', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           Raven.captureMessage('Hello');
           done();
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           assert.equal(ravenData.message, 'Hello');
-        }
-      );
+        });
+    });
+
+    it.only('should merge globalContext.extra when using Raven.captureException', function(done) {
+      var iframe = this.iframe;
+      iframeExecute(iframe, done, function() {
+          setTimeout(done);
+          Raven.setExtraContext({a: 1, b: 2});
+
+          try {
+            foo();
+          } catch (e) {
+            Raven.captureException(e, {extra: {b: 3, c: 4}});
+          }
+        }, function() {
+          var ravenData = iframe.contentWindow.ravenData[0];
+          assert.equal(ravenData.extra.a, 1);
+          assert.equal(ravenData.extra.b, 3);
+          assert.equal(ravenData.extra.c, 4);
+        });
     });
 
     it('should capture Raven.captureException', function(done) {
       var iframe = this.iframe;
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           try {
@@ -85,46 +96,32 @@ describe('integration', function() {
           } catch (e) {
             Raven.captureException(e);
           }
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           assert.isAtLeast(ravenData.exception.values[0].stacktrace.frames.length, 2);
           assert.isAtMost(ravenData.exception.values[0].stacktrace.frames.length, 4);
-        }
-      );
+        });
     });
 
-    it('should generate a synthetic trace for captureException w/ non-errors', function(
-      done
-    ) {
+    it('should generate a synthetic trace for captureException w/ non-errors', function(done) {
       var iframe = this.iframe;
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           Raven.captureException({foo: 'bar'});
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           assert.isAtLeast(ravenData.stacktrace.frames.length, 1);
           assert.isAtMost(ravenData.stacktrace.frames.length, 3);
 
           // verify trimHeadFrames hasn't slipped into final payload
           assert.isUndefined(ravenData.trimHeadFrames);
-        }
-      );
+        });
     });
 
-    it('should capture an Error object passed to Raven.captureException w/ maxMessageLength set (#647)', function(
-      done
-    ) {
+    it('should capture an Error object passed to Raven.captureException w/ maxMessageLength set (#647)', function(done) {
       var iframe = this.iframe;
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           Raven._globalOptions.maxMessageLength = 100;
@@ -134,22 +131,17 @@ describe('integration', function() {
               foo: 'bar'
             }
           });
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           assert.equal(ravenData.exception.values[0].type, 'Error');
           assert.equal(ravenData.exception.values[0].value, 'lol');
           assert.equal(ravenData.exception.values[0].stacktrace.frames.length, 1);
-        }
-      );
+        });
     });
 
     it('should reject duplicate, back-to-back errors from captureError', function(done) {
       var iframe = this.iframe;
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           Raven._breadcrumbs = [];
 
           var count = 5;
@@ -173,8 +165,7 @@ describe('integration', function() {
             if (count-- === 0) return void done();
             else setTimeout(invoke);
           });
-        },
-        function() {
+        }, function() {
           var breadcrumbs = iframe.contentWindow.Raven._breadcrumbs;
           // use breadcrumbs to evaluate which errors were sent
           // NOTE: can't use ravenData because duplicate error suppression occurs
@@ -184,18 +175,12 @@ describe('integration', function() {
           assert.equal(breadcrumbs[0].message, 'Error: foo');
           assert.equal(breadcrumbs[1].message, 'Error: bar');
           assert.equal(breadcrumbs[2].message, 'Error: foo');
-        }
-      );
+        });
     });
 
-    it('should not reject back-to-back errors with different stack traces', function(
-      done
-    ) {
+    it('should not reject back-to-back errors with different stack traces', function(done) {
       var iframe = this.iframe;
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
           Raven._breadcrumbs = [];
 
@@ -227,26 +212,19 @@ describe('integration', function() {
           } catch (e) {
             Raven.captureException(e);
           }
-        },
-        function() {
+        }, function() {
           var breadcrumbs = iframe.contentWindow.Raven._breadcrumbs;
           assert.equal(breadcrumbs.length, 3);
           // NOTE: regex because exact error message differs per-browser
           assert.match(breadcrumbs[0].message, /^ReferenceError.*baz/);
           assert.match(breadcrumbs[1].message, /^ReferenceError.*baz/);
           assert.match(breadcrumbs[2].message, /^ReferenceError.*baz/);
-        }
-      );
+        });
     });
 
-    it('should reject duplicate, back-to-back messages from captureMessage', function(
-      done
-    ) {
+    it('should reject duplicate, back-to-back messages from captureMessage', function(done) {
       var iframe = this.iframe;
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           Raven._breadcrumbs = [];
@@ -256,23 +234,15 @@ describe('integration', function() {
           Raven.captureMessage('this is fine', {stacktrace: true});
           Raven.captureMessage("i'm okay with the events that are unfolding currently");
           Raven.captureMessage("that's okay, things are going to be okay");
-        },
-        function() {
+        }, function() {
           var breadcrumbs = iframe.contentWindow.Raven._breadcrumbs;
 
           assert.equal(breadcrumbs.length, 4);
           assert.equal(breadcrumbs[0].message, 'this is fine');
           assert.equal(breadcrumbs[1].message, 'this is fine'); // with stacktrace
-          assert.equal(
-            breadcrumbs[2].message,
-            "i'm okay with the events that are unfolding currently"
-          );
-          assert.equal(
-            breadcrumbs[3].message,
-            "that's okay, things are going to be okay"
-          );
-        }
-      );
+          assert.equal(breadcrumbs[2].message, "i'm okay with the events that are unfolding currently");
+          assert.equal(breadcrumbs[3].message, "that's okay, things are going to be okay");
+        });
     });
   });
 
@@ -280,14 +250,10 @@ describe('integration', function() {
     it('should catch syntax errors', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
           eval('foo{};');
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           // ¯\_(ツ)_/¯
           if (isBelowIE11() || isEdge14()) {
@@ -296,17 +262,13 @@ describe('integration', function() {
             assert.match(ravenData.exception.values[0].type, /SyntaxError/);
           }
           assert.equal(ravenData.exception.values[0].stacktrace.frames.length, 1); // just one frame
-        }
-      );
+        });
     });
 
     it('should catch thrown strings', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           // intentionally loading this error via a script file to make
           // sure it is 1) not caught by instrumentation 2) doesn't trigger
           // "Script error"
@@ -316,33 +278,22 @@ describe('integration', function() {
             done();
           };
           document.head.appendChild(script);
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           assert.match(ravenData.exception.values[0].value, /stringError$/);
           assert.equal(ravenData.exception.values[0].stacktrace.frames.length, 1); // always 1 because thrown strings can't provide > 1 frame
 
           // some browsers extract proper url, line, and column for thrown strings
           // but not all - falls back to frame url
-          assert.match(
-            ravenData.exception.values[0].stacktrace.frames[0].filename,
-            /\/test\/integration\//
-          );
-          assert.match(
-            ravenData.exception.values[0].stacktrace.frames[0]['function'],
-            /\?|global code/i
-          );
-        }
-      );
+          assert.match(ravenData.exception.values[0].stacktrace.frames[0].filename, /\/test\/integration\//);
+          assert.match(ravenData.exception.values[0].stacktrace.frames[0]['function'], /\?|global code/i);
+        });
     });
 
     it('should catch thrown objects', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           // intentionally loading this error via a script file to make
           // sure it is 1) not caught by instrumentation 2) doesn't trigger
           // "Script error"
@@ -352,8 +303,7 @@ describe('integration', function() {
             done();
           };
           document.head.appendChild(script);
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           assert.equal(ravenData.exception.values[0].type, undefined);
           assert.equal(ravenData.exception.values[0].value, '[object Object]');
@@ -361,25 +311,15 @@ describe('integration', function() {
 
           // some browsers extract proper url, line, and column for thrown objects
           // but not all - falls back to frame url
-          assert.match(
-            ravenData.exception.values[0].stacktrace.frames[0].filename,
-            /\/test\/integration\//
-          );
-          assert.match(
-            ravenData.exception.values[0].stacktrace.frames[0]['function'],
-            /\?|global code/i
-          );
-        }
-      );
+          assert.match(ravenData.exception.values[0].stacktrace.frames[0].filename, /\/test\/integration\//);
+          assert.match(ravenData.exception.values[0].stacktrace.frames[0]['function'], /\?|global code/i);
+        });
     });
 
     it('should catch thrown errors', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           // intentionally loading this error via a script file to make
           // sure it is 1) not caught by instrumentation 2) doesn't trigger
           // "Script error"
@@ -389,8 +329,7 @@ describe('integration', function() {
             done();
           };
           document.head.appendChild(script);
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           // ¯\_(ツ)_/¯
           if (isBelowIE11() || isEdge14()) {
@@ -402,48 +341,31 @@ describe('integration', function() {
           // 1 or 2 depending on platform
           assert.isAtLeast(ravenData.exception.values[0].stacktrace.frames.length, 1);
           assert.isAtMost(ravenData.exception.values[0].stacktrace.frames.length, 2);
-          assert.match(
-            ravenData.exception.values[0].stacktrace.frames[0].filename,
-            /\/test\/integration\/throw-error\.js/
-          );
-          assert.match(
-            ravenData.exception.values[0].stacktrace.frames[0]['function'],
-            /\?|global code|throwRealError/i
-          );
-        }
-      );
+          assert.match(ravenData.exception.values[0].stacktrace.frames[0].filename, /\/test\/integration\/throw-error\.js/);
+          assert.match(ravenData.exception.values[0].stacktrace.frames[0]['function'], /\?|global code|throwRealError/i);
+        });
     });
 
     it('should NOT catch an exception already caught via Raven.wrap', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
           Raven.wrap(function() {
             foo();
           })();
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData;
           assert.equal(ravenData.length, 1); // one caught error
-        }
-      );
+        });
     });
 
-    it('should catch an exception already caught [but rethrown] via Raven.captureException', function(
-      done
-    ) {
+    it('should catch an exception already caught [but rethrown] via Raven.captureException', function(done) {
       // unlike Raven.wrap which ALWAYS re-throws, we don't know if the user will
       // re-throw an exception passed to Raven.captureException, and so we cannot
       // automatically suppress the next error caught through window.onerror
       var iframe = this.iframe;
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
           try {
             foo();
@@ -451,12 +373,10 @@ describe('integration', function() {
             Raven.captureException(e);
             throw e; // intentionally re-throw
           }
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData;
           assert.equal(ravenData.length, 2);
-        }
-      );
+        });
     });
   });
 
@@ -464,42 +384,28 @@ describe('integration', function() {
     it('should capture exceptions from event listeners', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           var div = document.createElement('div');
           document.body.appendChild(div);
-          div.addEventListener(
-            'click',
-            function() {
+          div.addEventListener('click', function() {
               foo();
-            },
-            false
-          );
+            }, false);
 
           var click = new MouseEvent('click');
           div.dispatchEvent(click);
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           assert.isAtLeast(ravenData.exception.values[0].stacktrace.frames.length, 3);
           assert.isAtMost(ravenData.exception.values[0].stacktrace.frames.length, 5);
-        }
-      );
+        });
     });
 
-    it('should transparently remove event listeners from wrapped functions', function(
-      done
-    ) {
+    it('should transparently remove event listeners from wrapped functions', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           var div = document.createElement('div');
@@ -512,53 +418,41 @@ describe('integration', function() {
 
           var click = new MouseEvent('click');
           div.dispatchEvent(click);
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           assert.equal(ravenData, null); // should never trigger error
-        }
-      );
+        });
     });
 
     it('should capture exceptions inside setTimeout', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(function() {
             setTimeout(done);
             foo();
           }, 10);
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           assert.isAtLeast(ravenData.exception.values[0].stacktrace.frames.length, 3);
           assert.isAtMost(ravenData.exception.values[0].stacktrace.frames.length, 4);
-        }
-      );
+        });
     });
 
     it('should capture exceptions inside setInterval', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           var exceptionInterval = setInterval(function() {
             setTimeout(done);
             clearInterval(exceptionInterval);
             foo();
           }, 10);
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           assert.isAtLeast(ravenData.exception.values[0].stacktrace.frames.length, 3);
           assert.isAtMost(ravenData.exception.values[0].stacktrace.frames.length, 4);
-        }
-      );
+        });
     });
 
     it('should capture exceptions inside requestAnimationFrame', function(done) {
@@ -566,32 +460,22 @@ describe('integration', function() {
       // needs to be visible or requestAnimationFrame won't ever fire
       iframe.style.display = 'block';
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           requestAnimationFrame(function() {
             setTimeout(done);
             foo();
           });
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           assert.isAtLeast(ravenData.exception.values[0].stacktrace.frames.length, 3);
           assert.isAtMost(ravenData.exception.values[0].stacktrace.frames.length, 4);
-        }
-      );
+        });
     });
 
-    it('should capture exceptions from XMLHttpRequest event handlers (e.g. onreadystatechange)', function(
-      done
-    ) {
+    it('should capture exceptions from XMLHttpRequest event handlers (e.g. onreadystatechange)', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           var xhr = new XMLHttpRequest();
 
           // intentionally assign event handlers *after* XMLHttpRequest.prototype.open,
@@ -607,14 +491,12 @@ describe('integration', function() {
             foo();
           };
           xhr.send();
-        },
-        function() {
+        }, function() {
           var ravenData = iframe.contentWindow.ravenData[0];
           // # of frames alter significantly between chrome/firefox & safari
           assert.isAtLeast(ravenData.exception.values[0].stacktrace.frames.length, 3);
           assert.isAtMost(ravenData.exception.values[0].stacktrace.frames.length, 4);
-        }
-      );
+        });
     });
   });
 
@@ -622,10 +504,7 @@ describe('integration', function() {
     it('should record an XMLHttpRequest', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           // some browsers trigger onpopstate for load / reset breadcrumb state
           Raven._breadcrumbs = [];
 
@@ -641,25 +520,20 @@ describe('integration', function() {
             }
           };
           xhr.send();
-        },
-        function() {
+        }, function() {
           var Raven = iframe.contentWindow.Raven,
             breadcrumbs = Raven._breadcrumbs;
 
           assert.equal(breadcrumbs.length, 1);
           assert.equal(breadcrumbs[0].type, 'http');
           assert.equal(breadcrumbs[0].data.method, 'GET');
-        }
-      );
+        });
     });
 
     it('should record an XMLHttpRequest without any handlers set', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           // I hate to do a time-based "done" trigger, but unfortunately we can't
           // set an onload/onreadystatechange handler on XHR to verify that it finished
           // - that's the whole point of this test! :(
@@ -673,8 +547,7 @@ describe('integration', function() {
           xhr.open('GET', '/test/integration/example.json');
           xhr.setRequestHeader('Content-type', 'application/json');
           xhr.send();
-        },
-        function() {
+        }, function() {
           var Raven = iframe.contentWindow.Raven,
             breadcrumbs = Raven._breadcrumbs;
 
@@ -683,18 +556,12 @@ describe('integration', function() {
           assert.equal(breadcrumbs[0].type, 'http');
           assert.equal(breadcrumbs[0].category, 'xhr');
           assert.equal(breadcrumbs[0].data.method, 'GET');
-        }
-      );
+        });
     });
 
-    it('should NOT denote XMLHttpRequests to the Sentry store endpoint as requiring breadcrumb capture', function(
-      done
-    ) {
+    it('should NOT denote XMLHttpRequests to the Sentry store endpoint as requiring breadcrumb capture', function(done) {
       var iframe = this.iframe;
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           var xhr = new XMLHttpRequest();
           xhr.open('GET', 'http://example.com/api/1/store/?sentry_key=public');
 
@@ -704,33 +571,24 @@ describe('integration', function() {
 
           window.ravenData = xhr.hasOwnProperty('__raven_xhr');
           setTimeout(done);
-        },
-        function() {
+        }, function() {
           assert.isFalse(iframe.contentWindow.ravenData);
-        }
-      );
+        });
     });
 
     it('should record a fetch request', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           // some browsers trigger onpopstate for load / reset breadcrumb state
           Raven._breadcrumbs = [];
 
-          fetch('/test/integration/example.json').then(
-            function() {
+          fetch('/test/integration/example.json').then(function() {
               setTimeout(done);
-            },
-            function() {
+            }, function() {
               setTimeout(done);
-            }
-          );
-        },
-        function() {
+            });
+        }, function() {
           var Raven = iframe.contentWindow.Raven,
             breadcrumbs = Raven._breadcrumbs,
             breadcrumbUrl = '/test/integration/example.json';
@@ -756,32 +614,22 @@ describe('integration', function() {
             assert.equal(breadcrumbs[1].data.method, 'GET');
             assert.equal(breadcrumbs[1].data.url, breadcrumbUrl);
           }
-        }
-      );
+        });
     });
 
-    it('should record a fetch request with Request obj instead of URL string', function(
-      done
-    ) {
+    it('should record a fetch request with Request obj instead of URL string', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           // some browsers trigger onpopstate for load / reset breadcrumb state
           Raven._breadcrumbs = [];
 
-          fetch(new Request('/test/integration/example.json')).then(
-            function() {
+          fetch(new Request('/test/integration/example.json')).then(function() {
               setTimeout(done);
-            },
-            function() {
+            }, function() {
               setTimeout(done);
-            }
-          );
-        },
-        function() {
+            });
+        }, function() {
           var Raven = iframe.contentWindow.Raven,
             breadcrumbs = Raven._breadcrumbs,
             breadcrumbUrl = '/test/integration/example.json';
@@ -808,19 +656,13 @@ describe('integration', function() {
             assert.equal(breadcrumbs[1].data.method, 'GET');
             assert.ok(breadcrumbs[1].data.url.indexOf(breadcrumbUrl) !== -1);
           }
-        }
-      );
+        });
     });
 
-    it('should record a mouse click on element WITH click handler present', function(
-      done
-    ) {
+    it('should record a mouse click on element WITH click handler present', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           // some browsers trigger onpopstate for load / reset breadcrumb state
@@ -838,31 +680,21 @@ describe('integration', function() {
           // click <input/>
           var click = new MouseEvent('click');
           input.dispatchEvent(click);
-        },
-        function() {
+        }, function() {
           var Raven = iframe.contentWindow.Raven,
             breadcrumbs = Raven._breadcrumbs;
 
           assert.equal(breadcrumbs.length, 1);
 
           assert.equal(breadcrumbs[0].category, 'ui.click');
-          assert.equal(
-            breadcrumbs[0].message,
-            'body > form#foo-form > input[name="foo"]'
-          );
-        }
-      );
+          assert.equal(breadcrumbs[0].message, 'body > form#foo-form > input[name="foo"]');
+        });
     });
 
-    it('should record a mouse click on element WITHOUT click handler present', function(
-      done
-    ) {
+    it('should record a mouse click on element WITHOUT click handler present', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           // some browsers trigger onpopstate for load / reset breadcrumb state
@@ -872,31 +704,21 @@ describe('integration', function() {
           var click = new MouseEvent('click');
           var input = document.getElementsByTagName('input')[0];
           input.dispatchEvent(click);
-        },
-        function() {
+        }, function() {
           var Raven = iframe.contentWindow.Raven,
             breadcrumbs = Raven._breadcrumbs;
 
           assert.equal(breadcrumbs.length, 1);
 
           assert.equal(breadcrumbs[0].category, 'ui.click');
-          assert.equal(
-            breadcrumbs[0].message,
-            'body > form#foo-form > input[name="foo"]'
-          );
-        }
-      );
+          assert.equal(breadcrumbs[0].message, 'body > form#foo-form > input[name="foo"]');
+        });
     });
 
-    it('should only record a SINGLE mouse click for a tree of elements with event listeners', function(
-      done
-    ) {
+    it('should only record a SINGLE mouse click for a tree of elements with event listeners', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           // some browsers trigger onpopstate for load / reset breadcrumb state
@@ -917,8 +739,7 @@ describe('integration', function() {
           var click = new MouseEvent('click');
           var input = document.querySelector('.a'); // leaf node
           input.dispatchEvent(click);
-        },
-        function() {
+        }, function() {
           var Raven = iframe.contentWindow.Raven,
             breadcrumbs = Raven._breadcrumbs;
 
@@ -926,20 +747,14 @@ describe('integration', function() {
 
           assert.equal(breadcrumbs[0].category, 'ui.click');
           assert.equal(breadcrumbs[0].message, 'body > div.c > div.b > div.a');
-        }
-      );
+        });
     });
 
-    it('should bail out if accessing the `type` and `target` properties of an event throw an exception', function(
-      done
-    ) {
+    it('should bail out if accessing the `type` and `target` properties of an event throw an exception', function(done) {
       // see: https://github.com/getsentry/raven-js/issues/768
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           // some browsers trigger onpopstate for load / reset breadcrumb state
@@ -955,27 +770,20 @@ describe('integration', function() {
 
           var input = document.querySelector('.a'); // leaf node
           input.dispatchEvent(click);
-        },
-        function() {
+        }, function() {
           var Raven = iframe.contentWindow.Raven,
             breadcrumbs = Raven._breadcrumbs;
 
           assert.equal(breadcrumbs.length, 1);
           assert.equal(breadcrumbs[0].category, 'ui.click');
           assert.equal(breadcrumbs[0].message, '<unknown>');
-        }
-      );
+        });
     });
 
-    it('should record consecutive keypress events into a single "input" breadcrumb', function(
-      done
-    ) {
+    it('should record consecutive keypress events into a single "input" breadcrumb', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           // some browsers trigger onpopstate for load / reset breadcrumb state
@@ -988,29 +796,21 @@ describe('integration', function() {
           var input = document.getElementsByTagName('input')[0];
           input.dispatchEvent(keypress1);
           input.dispatchEvent(keypress2);
-        },
-        function() {
+        }, function() {
           var Raven = iframe.contentWindow.Raven,
             breadcrumbs = Raven._breadcrumbs;
 
           assert.equal(breadcrumbs.length, 1);
 
           assert.equal(breadcrumbs[0].category, 'ui.input');
-          assert.equal(
-            breadcrumbs[0].message,
-            'body > form#foo-form > input[name="foo"]'
-          );
-        }
-      );
+          assert.equal(breadcrumbs[0].message, 'body > form#foo-form > input[name="foo"]');
+        });
     });
 
     it('should flush keypress breadcrumbs when an error is thrown', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           // some browsers trigger onpopstate for load / reset breadcrumb state
@@ -1023,8 +823,7 @@ describe('integration', function() {
           input.dispatchEvent(keypress);
 
           foo(); // throw exception
-        },
-        function() {
+        }, function() {
           var Raven = iframe.contentWindow.Raven,
             breadcrumbs = Raven._breadcrumbs;
 
@@ -1032,23 +831,14 @@ describe('integration', function() {
           assert.equal(breadcrumbs.length, 2);
 
           assert.equal(breadcrumbs[0].category, 'ui.input');
-          assert.equal(
-            breadcrumbs[0].message,
-            'body > form#foo-form > input[name="foo"]'
-          );
-        }
-      );
+          assert.equal(breadcrumbs[0].message, 'body > form#foo-form > input[name="foo"]');
+        });
     });
 
-    it('should flush keypress breadcrumb when input event occurs immediately after', function(
-      done
-    ) {
+    it('should flush keypress breadcrumb when input event occurs immediately after', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           // some browsers trigger onpopstate for load / reset breadcrumb state
@@ -1065,8 +855,7 @@ describe('integration', function() {
           input.dispatchEvent(keypress1);
           input.dispatchEvent(click);
           input.dispatchEvent(keypress2);
-        },
-        function() {
+        }, function() {
           var Raven = iframe.contentWindow.Raven,
             breadcrumbs = Raven._breadcrumbs;
 
@@ -1074,35 +863,20 @@ describe('integration', function() {
           assert.equal(breadcrumbs.length, 3);
 
           assert.equal(breadcrumbs[0].category, 'ui.input');
-          assert.equal(
-            breadcrumbs[0].message,
-            'body > form#foo-form > input[name="foo"]'
-          );
+          assert.equal(breadcrumbs[0].message, 'body > form#foo-form > input[name="foo"]');
 
           assert.equal(breadcrumbs[1].category, 'ui.click');
-          assert.equal(
-            breadcrumbs[1].message,
-            'body > form#foo-form > input[name="foo"]'
-          );
+          assert.equal(breadcrumbs[1].message, 'body > form#foo-form > input[name="foo"]');
 
           assert.equal(breadcrumbs[2].category, 'ui.input');
-          assert.equal(
-            breadcrumbs[2].message,
-            'body > form#foo-form > input[name="foo"]'
-          );
-        }
-      );
+          assert.equal(breadcrumbs[2].message, 'body > form#foo-form > input[name="foo"]');
+        });
     });
 
-    it('should record consecutive keypress events in a contenteditable into a single "input" breadcrumb', function(
-      done
-    ) {
+    it('should record consecutive keypress events in a contenteditable into a single "input" breadcrumb', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           // some browsers trigger onpopstate for load / reset breadcrumb state
@@ -1115,31 +889,21 @@ describe('integration', function() {
           var div = document.querySelector('[contenteditable]');
           div.dispatchEvent(keypress1);
           div.dispatchEvent(keypress2);
-        },
-        function() {
+        }, function() {
           var Raven = iframe.contentWindow.Raven,
             breadcrumbs = Raven._breadcrumbs;
 
           assert.equal(breadcrumbs.length, 1);
 
           assert.equal(breadcrumbs[0].category, 'ui.input');
-          assert.equal(
-            breadcrumbs[0].message,
-            'body > form#foo-form > div.contenteditable'
-          );
-        }
-      );
+          assert.equal(breadcrumbs[0].message, 'body > form#foo-form > div.contenteditable');
+        });
     });
 
-    it('should record history.[pushState|back] changes as navigation breadcrumbs', function(
-      done
-    ) {
+    it('should record history.[pushState|back] changes as navigation breadcrumbs', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           // some browsers trigger onpopstate for load / reset breadcrumb state
           Raven._breadcrumbs = [];
 
@@ -1154,8 +918,7 @@ describe('integration', function() {
           history.replaceState({}, '', '/bar?a=1#fragment');
           window.onpopstate();
           done();
-        },
-        function() {
+        }, function() {
           var Raven = iframe.contentWindow.Raven,
             breadcrumbs = Raven._breadcrumbs,
             from,
@@ -1167,37 +930,18 @@ describe('integration', function() {
           assert.equal(breadcrumbs[2].category, 'navigation'); // bar?a=1#fragment => [object%20Object]
           assert.equal(breadcrumbs[3].category, 'navigation'); // [object%20Object] => bar?a=1#fragment (back button)
 
-          assert.ok(
-            /\/test\/integration\/frame\.html$/.test(Raven._breadcrumbs[0].data.from),
-            "'from' url is incorrect"
-          );
+          assert.ok(/\/test\/integration\/frame\.html$/.test(Raven._breadcrumbs[0].data.from), "'from' url is incorrect");
           assert.ok(/\/foo$/.test(breadcrumbs[0].data.to), "'to' url is incorrect");
 
           assert.ok(/\/foo$/.test(breadcrumbs[1].data.from), "'from' url is incorrect");
-          assert.ok(
-            /\/bar\?a=1#fragment$/.test(breadcrumbs[1].data.to),
-            "'to' url is incorrect"
-          );
+          assert.ok(/\/bar\?a=1#fragment$/.test(breadcrumbs[1].data.to), "'to' url is incorrect");
 
-          assert.ok(
-            /\/bar\?a=1#fragment$/.test(breadcrumbs[2].data.from),
-            "'from' url is incorrect"
-          );
-          assert.ok(
-            /\[object Object\]$/.test(breadcrumbs[2].data.to),
-            "'to' url is incorrect"
-          );
+          assert.ok(/\/bar\?a=1#fragment$/.test(breadcrumbs[2].data.from), "'from' url is incorrect");
+          assert.ok(/\[object Object\]$/.test(breadcrumbs[2].data.to), "'to' url is incorrect");
 
-          assert.ok(
-            /\[object Object\]$/.test(breadcrumbs[3].data.from),
-            "'from' url is incorrect"
-          );
-          assert.ok(
-            /\/bar\?a=1#fragment/.test(breadcrumbs[3].data.to),
-            "'to' url is incorrect"
-          );
-        }
-      );
+          assert.ok(/\[object Object\]$/.test(breadcrumbs[3].data.from), "'from' url is incorrect");
+          assert.ok(/\/bar\?a=1#fragment/.test(breadcrumbs[3].data.to), "'to' url is incorrect");
+        });
     });
   });
 
@@ -1205,27 +949,12 @@ describe('integration', function() {
     it('should restore original built-ins', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
           Raven.uninstall();
 
-          window.isRestored = {
-            setTimeout: originalBuiltIns.setTimeout === setTimeout,
-            setInterval: originalBuiltIns.setInterval === setInterval,
-            requestAnimationFrame:
-              originalBuiltIns.requestAnimationFrame === requestAnimationFrame,
-            xhrProtoOpen: originalBuiltIns.xhrProtoOpen === XMLHttpRequest.prototype.open,
-            headAddEventListener:
-              originalBuiltIns.headAddEventListener === document.body.addEventListener,
-            headRemoveEventListener:
-              originalBuiltIns.headRemoveEventListener ===
-              document.body.removeEventListener
-          };
-        },
-        function() {
+          window.isRestored = {setTimeout: originalBuiltIns.setTimeout === setTimeout, setInterval: originalBuiltIns.setInterval === setInterval, requestAnimationFrame: originalBuiltIns.requestAnimationFrame === requestAnimationFrame, xhrProtoOpen: originalBuiltIns.xhrProtoOpen === XMLHttpRequest.prototype.open, headAddEventListener: originalBuiltIns.headAddEventListener === document.body.addEventListener, headRemoveEventListener: originalBuiltIns.headRemoveEventListener === document.body.removeEventListener};
+        }, function() {
           var isRestored = iframe.contentWindow.isRestored;
           assert.isTrue(isRestored.setTimeout);
           assert.isTrue(isRestored.setInterval);
@@ -1233,17 +962,13 @@ describe('integration', function() {
           assert.isTrue(isRestored.xhrProtoOpen);
           assert.isTrue(isRestored.headAddEventListener);
           assert.isTrue(isRestored.headRemoveEventListener);
-        }
-      );
+        });
     });
 
     it('should not restore XMLHttpRequest instance methods', function(done) {
       var iframe = this.iframe;
 
-      iframeExecute(
-        iframe,
-        done,
-        function() {
+      iframeExecute(iframe, done, function() {
           setTimeout(done);
 
           var xhr = new XMLHttpRequest();
@@ -1254,11 +979,9 @@ describe('integration', function() {
           Raven.uninstall();
 
           window.isOnReadyStateChangeRestored = xhr.onready === origOnReadyStateChange;
-        },
-        function() {
+        }, function() {
           assert.isFalse(iframe.contentWindow.isOnReadyStateChangeRestored);
-        }
-      );
+        });
     });
   });
 });
